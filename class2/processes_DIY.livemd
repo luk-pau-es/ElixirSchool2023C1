@@ -12,11 +12,28 @@ Hint 2 - when a message is sent the sender process is unknown to the receiver pr
 
 ```elixir
 defmodule Echo do
+  defp echo_recursive do
+    receive do
+      {pid, msg} ->
+        send(pid, msg)
+        echo_recursive()
+    after
+      # Kill process after 1 second
+      1000 -> IO.inspect(:timeout, label: "No more messages to echo")
+    end
+  end
+
   def spawn_echo_process do
-    ## Add spawning code here.
-    Process.sleep(1000)
+    Process.register(self(), :echo)
+    echo_recursive()
+    Process.unregister(:echo)
   end
 end
+```
+
+```elixir
+# Unregister echo if that atom is registered
+# Process.unregister(:echo)
 ```
 
 ```elixir
@@ -25,7 +42,7 @@ spawn(Echo, :spawn_echo_process, [])
 messages = [:first, {:second, :message}, %{"third" => 1}]
 
 for msg <- messages do
-  send(:echo, msg)
+  send(:echo, {self(), msg})
 
   receive do
     ^msg -> :ok
@@ -49,7 +66,76 @@ Hint 2 - use asyncronious comunication to update counter and syncronious communi
 Hint 3 - think about possible race condition that may occure in your system.
 
 ```elixir
+defmodule Counter do
+  defp counter_recursive(count) do
+    receive do
+      :increment ->
+        counter_recursive(count + 1)
 
+      :decrement ->
+        counter_recursive(count - 1)
+
+      {:increment, number} ->
+        counter_recursive(count + number)
+
+      {:decrement, number} ->
+        counter_recursive(count - number)
+
+      {:retrive, pid} ->
+        send(pid, count)
+        counter_recursive(count)
+
+      :stop ->
+        :ok
+
+      :throw ->
+        throw(1)
+
+      :exit ->
+        exit(1)
+
+      :error_internal ->
+        1 = 2
+
+      _ ->
+        counter_recursive(count)
+    end
+  end
+
+  def counter(), do: counter(0)
+
+  def counter(count) do
+    Process.register(self(), CounterProcess)
+    counter_recursive(count)
+    Process.unregister(CounterProcess)
+  end
+end
+```
+
+```elixir
+spawn(Counter, :counter, [0])
+```
+
+```elixir
+for _ <- Enum.to_list(1..1_000) do
+  send(CounterProcess, :increment)
+end
+
+send(CounterProcess, :decrement)
+
+send(CounterProcess, {:retrive, self()})
+
+receive do
+  msg -> IO.inspect(msg)
+end
+
+Process.sleep(500)
+
+send(CounterProcess, {:retrive, self()})
+
+receive do
+  msg -> IO.inspect(msg)
+end
 ```
 
 ## Warden
@@ -59,7 +145,35 @@ Implement a process that will start and watch counter process, if the counter cr
 Hint 1 - use monitor or link with setting process flag `trap_exit`.
 
 ```elixir
+defmodule Warden do
+  def warden_process(process_name, {module_name, function_name, function_arguments}) do
+    Process.monitor(process_name)
 
+    receive do
+      msg ->
+        IO.inspect(msg, label: "The trap exit messge")
+        spawn(module_name, function_name, function_arguments)
+    end
+
+    warden_process(process_name, {module_name, function_name, function_arguments})
+  end
+end
+```
+
+```elixir
+spawn(Warden, :warden_process, [CounterProcess, {Counter, :counter, []}])
+```
+
+```elixir
+send(CounterProcess, :error_internal)
+```
+
+```elixir
+send(CounterProcess, {:retrive, self()})
+
+receive do
+  msg -> IO.inspect(msg)
+end
 ```
 
 ## The ring
@@ -83,5 +197,55 @@ graph LR;
 ```
 
 ```elixir
+defmodule TheRing do
+  def chinese_whispers(name, next_whisperer) do
+    receive do
+      :exit ->
+        send(next_whisperer, :exit)
+        IO.puts(name <> " exited gracefully")
+        :ok
 
+      recived_whisper ->
+        IO.puts(name <> " received: " <> recived_whisper)
+        Process.sleep(1000)
+        send(next_whisperer, recived_whisper)
+        chinese_whispers(name, next_whisperer)
+    end
+  end
+
+  def setup(name) do
+    receive do
+      next_whisperer ->
+        chinese_whispers(name, next_whisperer)
+    end
+  end
+
+  def spawn_nodes(0, last_pid) do
+    last_pid
+  end
+
+  def spawn_nodes(number, last_pid) do
+    new_pid = spawn(TheRing, :chinese_whispers, ["#{number}", last_pid])
+    spawn_nodes(number - 1, new_pid)
+  end
+
+  def create_the_ring(number) do
+    first_process_id = spawn(TheRing, :setup, ["#{number}"])
+    last_process_id = spawn_nodes(number - 1, first_process_id)
+    send(first_process_id, last_process_id)
+    first_process_id
+  end
+end
+```
+
+```elixir
+pid = TheRing.create_the_ring(5)
+```
+
+```elixir
+send(pid, "Hello")
+```
+
+```elixir
+send(pid, :exit)
 ```
