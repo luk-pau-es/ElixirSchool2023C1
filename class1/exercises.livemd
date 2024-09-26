@@ -11,9 +11,51 @@ Write a function that returns the numbers from 1 to `n`. But for multiples of:
 Tip: see [How to use div/2 and/or rem/2?](https://elixir-lang.org/getting-started/basic-types.html#basic-arithmetic)
 
 ```elixir
+# Simple solution
 defmodule FizzBuzz do
+  defp fizzbuzz_mapping(n) when rem(n, 15) == 0, do: :fizzbuzz
+  defp fizzbuzz_mapping(n) when rem(n, 3) == 0, do: :fizz
+  defp fizzbuzz_mapping(n) when rem(n, 5) == 0, do: :buzz
+  defp fizzbuzz_mapping(n), do: n
+
+  def fizzbuzz(0), do: []
+
   def fizzbuzz(n) do
-    []
+    1..n
+    |> Enum.to_list()
+    |> Enum.map(&fizzbuzz_mapping/1)
+  end
+end
+
+# Extendible solution
+defmodule FizzBuzzExtendible do
+  defp fizzbuzz_prime_3({n, output}) when rem(n, 3) == 0, do: {n, output <> "fizz"}
+  defp fizzbuzz_prime_3({n, output}), do: {n, output}
+  defp fizzbuzz_prime_5({n, output}) when rem(n, 5) == 0, do: {n, output <> "buzz"}
+  defp fizzbuzz_prime_5({n, output}), do: {n, output}
+  defp fizzbuzz_prime_7({n, output}) when rem(n, 7) == 0, do: {n, output <> "muzz"}
+  defp fizzbuzz_prime_7({n, output}), do: {n, output}
+  defp fizzbuzz_prime_11({n, output}) when rem(n, 11) == 0, do: {n, output <> "huzz"}
+  defp fizzbuzz_prime_11({n, output}), do: {n, output}
+
+  defp fizzbuzz_result({n, output}) when output == "", do: n
+  defp fizzbuzz_result({_n, output}), do: :"#{output}"
+
+  defp fizzbuzz_mapping(n) do
+    {n, ""}
+    |> fizzbuzz_prime_3
+    |> fizzbuzz_prime_5
+    |> fizzbuzz_prime_7
+    |> fizzbuzz_prime_11
+    |> fizzbuzz_result
+  end
+
+  def fizzbuzz(0), do: []
+
+  def fizzbuzz(n) do
+    1..n
+    |> Enum.to_list()
+    |> Enum.map(&fizzbuzz_mapping/1)
   end
 end
 ```
@@ -59,15 +101,19 @@ end
 ] = FizzBuzz.fizzbuzz(31)
 ```
 
+```elixir
+# Bonus
+FizzBuzzExtendible.fizzbuzz(3 * 5 * 7 * 11)
+```
+
 ## Modules and Functions - Sum
 
 Write functions `sum(n)` that uses recursion to calculate the sum of integers from 1 to n.
 
 ```elixir
 defmodule Recursive do
-  def sum(n) do
-    # Your code here
-  end
+  def sum(0), do: 0
+  def sum(n), do: n + sum(n - 1)
 end
 ```
 
@@ -95,8 +141,22 @@ Tip: You can calculate score for each group in separate function and pipe them t
 
 ```elixir
 defmodule Scrabble do
+  defp get_letter_value(letter) when letter in ["A", "E", "I", "O", "U", "L", "N", "R", "S", "T"],
+    do: 1
+
+  defp get_letter_value(letter) when letter in ["D", "G"], do: 2
+  defp get_letter_value(letter) when letter in ["B", "C", "M", "P"], do: 3
+  defp get_letter_value(letter) when letter in ["F", "H", "V", "W", "Y"], do: 4
+  defp get_letter_value(letter) when letter in ["K"], do: 5
+  defp get_letter_value(letter) when letter in ["J", "X"], do: 8
+  defp get_letter_value(letter) when letter in ["Q", "Z"], do: 10
+
   def calculate_score(word) do
-    # Your code here
+    word
+    |> String.upcase()
+    |> String.graphemes()
+    |> Enum.map(&get_letter_value/1)
+    |> Enum.sum()
   end
 end
 ```
